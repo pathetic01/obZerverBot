@@ -2,44 +2,43 @@ import disnake
 import asyncio
 from disnake.ext import commands, tasks
 from config import TOKEN  # Import TOKEN from config.py
-from music import setup_music_commands  # Импортируем музыкальный функционал
+from music import setup_music_commands  # Import music functionality
 
 # server ID and voice channel ID, to observe
-GUILD_ID = 607877371416150041  # ID вашего сервера
-VOICE_CHANNEL_IDS = [690479552056786954]  # ID голосовых каналов
-MAX_PARTICIPANTS = 3  # Лимит участников
+GUILD_ID = 607877371416150041  # ID of your server
+VOICE_CHANNEL_IDS = [690479552056786954]  # ID of voice channels to monitor
+MAX_PARTICIPANTS = 25  # Maximum allowed participants in a voice channel. (25)
 
-ALLOWED_CHANNEL_ID = 608659506922127420  # ID текстового канала для взаимодействия с ботом
+ALLOWED_CHANNEL_ID = 608659506922127420  # ID of the text channel for bot interactions
 
-# Intent'ы
+# Define intents to specify bot permissions
 intents = disnake.Intents.all()
 
-# Создаём бота
-bot = commands.Bot(command_prefix="!", intents=intents, test_guilds=[GUILD_ID])  # test_guilds для быстрого синка команд
+# Create the bot instance
+bot = commands.Bot(command_prefix="!", intents=intents, test_guilds=[GUILD_ID])  # test_guilds for faster command sync
 
-
-# Флаг для контроля мониторинга
+# Monitoring status flag
 monitoring_enabled = False
 
-# Подключаем музыкальные команды
+# Setup music commands
 setup_music_commands(bot)
 
-# Событие при запуске бота
+# Event triggered when the bot is ready
 @bot.event
 async def on_ready():
-    print(f"✅ Бот запущен как {bot.user}")
+    print(f"✅ Bot is running as {bot.user}")
 
 
-# Команда /ping
-@bot.slash_command(name="ping", description="Проверка работоспособности бота")
+# /ping command to check if the bot is working
+@bot.slash_command(name="ping", description="Check if the bot is working")
 async def ping(inter: disnake.ApplicationCommandInteraction):
     if inter.channel.id != ALLOWED_CHANNEL_ID:
         return
     await inter.response.send_message("🏓 Pong!")
 
 
-# Команда /enable_monitor
-@bot.slash_command(name="enable_monitor", description="Включить мониторинг участников")
+# /enable_monitor command to start monitoring voice channels
+@bot.slash_command(name="enable_monitor", description="Enable participant monitoring")
 async def enable_monitor(inter: disnake.ApplicationCommandInteraction):
     global monitoring_enabled
     if inter.channel.id != ALLOWED_CHANNEL_ID:
@@ -47,37 +46,37 @@ async def enable_monitor(inter: disnake.ApplicationCommandInteraction):
     if not monitoring_enabled:
         monitoring_enabled = True
         monitor_channels.start()
-        await inter.response.send_message("🔍 Мониторинг участников включён.")
+        await inter.response.send_message("🔍 Participant monitoring enabled.")
     else:
-        await inter.response.send_message("🔍 Мониторинг уже включён.")
+        await inter.response.send_message("🔍 Monitoring is already enabled.")
 
 
-# Команда /disable_monitor
-@bot.slash_command(name="disable_monitor", description="Отключить мониторинг участников")
+# /disable_monitor command to stop monitoring voice channels
+@bot.slash_command(name="disable_monitor", description="Disable participant monitoring")
 async def disable_monitor(inter: disnake.ApplicationCommandInteraction):
     global monitoring_enabled
-    if inter.channel.id != ALLOWED_CHANNEL_ID:
+    if inter.channel.id != ALLOWED_CHANNEL_ID:  # Ensure the command is used in the allowed channel
         return
-    if monitoring_enabled:
+    if monitoring_enabled:                      # If monitoring is currently enabled
         monitoring_enabled = False
-        monitor_channels.stop()
-        await inter.response.send_message("🛑 Мониторинг участников отключён.")
+        monitor_channels.stop()                 # Stop the monitoring loop
+        await inter.response.send_message("🛑 Participant monitoring disabled.")
     else:
-        await inter.response.send_message("🛑 Мониторинг уже отключён.")
+        await inter.response.send_message("🛑 Monitoring is already disabled.")
 
 
-# Цикл для мониторинга каналов
+# Loop to monitor voice channels
 @tasks.loop(seconds=10)
 async def monitor_channels():
-    if not monitoring_enabled:
+    if not monitoring_enabled:  # Skip if monitoring is disabled
         return
 
     guild = bot.get_guild(GUILD_ID)
     if not guild:
-        print("Сервер не найден.")
+        print("Server not found.")
         return
 
-    for channel_id in VOICE_CHANNEL_IDS:
+    for channel_id in VOICE_CHANNEL_IDS: # Iterate through monitored voice channels
         voice_channel = guild.get_channel(channel_id)
         if voice_channel:
             participant_count = len(voice_channel.members)
@@ -88,38 +87,38 @@ async def monitor_channels():
                 if not overwrite.stream:
                     overwrite.stream = True
                     await voice_channel.set_permissions(guild.default_role, overwrite=overwrite)
-                    print(f"✅ Стриминг разрешён в канале: {voice_channel.name}")
+                    print(f"✅ Streaming allowed in channel: {voice_channel.name}")
             else:
                 if overwrite.stream:
                     overwrite.stream = False
                     await voice_channel.set_permissions(guild.default_role, overwrite=overwrite)
-                    print(f"🚫 Стриминг запрещён в канале: {voice_channel.name}")
+                    print(f"🚫 Streaming disabled in channel: {voice_channel.name}")
 
-            # Проверяем участников на нарушение использования камеры/стрима
+            # Disable streaming if the number of participants exceeds the limit
             for user in voice_channel.members:
                 voice_state = user.voice
                 if voice_state.self_video or voice_state.self_stream:
-                    if not overwrite.stream:  # Стриминг запрещён
+                    if not overwrite.stream:  # streaming disabled
                         try:
-                            # Перемещение пользователя в временный канал
+                            # moving participant to another voice channel
                             temp_channel = guild.get_channel(607880556797100065)
                             if not temp_channel:
-                                print("❌ Временный канал не найден.")
+                                print("❌ Channel is not found.")
                                 continue
 
-                            # Перемещение пользователя в канал и обратно
+                            # Move the user to the channel and back
                             await user.move_to(temp_channel)
-                            print(f"🔄 {user.name} был перемещён в канал {temp_channel.name} для сброса.")
-                            await asyncio.sleep(1)  # Небольшая задержка
+                            print(f"🔄 {user.name} was moved to {temp_channel.name} for reset.")
+                            await asyncio.sleep(1)  # delay
                             await user.move_to(voice_channel)
-                            print(f"✅ {user.name} возвращён в канал {voice_channel.name}.")
+                            print(f"✅ {user.name} was moved back to {voice_channel.name}.")
                         except disnake.Forbidden:
-                            print(f"❌ Недостаточно прав для перемещения {user.name}.")
+                            print(f"❌ Insufficient permissions to move {user.name}.")
                         except disnake.HTTPException as e:
-                            print(f"❌ Ошибка Discord API при перемещении {user.name}: {e}")
+                            print(f"❌ Discord API error while moving {user.name}: {e}")
         else:
-            print(f"Канал с ID {channel_id} не найден.")
+            print(f"Channel with ID {channel_id} not found.")
 
 
-# Запуск бота
+# Run the bot
 bot.run(TOKEN)
