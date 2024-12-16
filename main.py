@@ -7,7 +7,7 @@ from music import setup_music_commands  # Import music functionality
 # server ID and voice channel ID, to observe
 GUILD_ID = 607877371416150041  # ID of your server
 VOICE_CHANNEL_IDS = [690479552056786954]  # ID of voice channels to monitor
-MAX_PARTICIPANTS = 25  # Maximum allowed participants in a voice channel. (25)
+MAX_PARTICIPANTS = 3  # Maximum allowed participants in a voice channel. (25)
 
 ALLOWED_CHANNEL_ID = 608659506922127420  # ID of the text channel for bot interactions
 
@@ -94,22 +94,25 @@ async def monitor_channels():
                     await voice_channel.set_permissions(guild.default_role, overwrite=overwrite)
                     print(f"🚫 Streaming disabled in channel: {voice_channel.name}")
 
-            # Disable streaming if the number of participants exceeds the limit
+            # Check if any participant violates the streaming rule
             for user in voice_channel.members:
                 voice_state = user.voice
-                if voice_state.self_video or voice_state.self_stream:
-                    if not overwrite.stream:  # streaming disabled
+                if voice_state is None:  # Skip users without active voice state
+                    continue
+
+                if voice_state.self_video or voice_state.self_stream:  # If the user has camera or stream on
+                    if not overwrite.stream:  # Streaming is disallowed
                         try:
-                            # moving participant to another voice channel
+                            # Get the temporary channel by ID
                             temp_channel = guild.get_channel(607880556797100065)
                             if not temp_channel:
-                                print("❌ Channel is not found.")
+                                print("❌ Temporary channel not found.")
                                 continue
 
-                            # Move the user to the channel and back
+                            # Move the user to the temporary channel and back
                             await user.move_to(temp_channel)
                             print(f"🔄 {user.name} was moved to {temp_channel.name} for reset.")
-                            await asyncio.sleep(1)  # delay
+                            await asyncio.sleep(1)  # Brief delay
                             await user.move_to(voice_channel)
                             print(f"✅ {user.name} was moved back to {voice_channel.name}.")
                         except disnake.Forbidden:
