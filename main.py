@@ -7,7 +7,7 @@ from music import setup_music_commands  # Import music functionality
 # server ID and voice channel ID, to observe
 GUILD_ID = 607877371416150041  # ID of your server
 VOICE_CHANNEL_IDS = [690479552056786954]  # ID of voice channels to monitor
-MAX_PARTICIPANTS = 3  # Maximum allowed participants in a voice channel. (25)
+MAX_PARTICIPANTS = 25  # Maximum allowed participants in a voice channel. (25)
 
 ALLOWED_CHANNEL_ID = 608659506922127420  # ID of the text channel for bot interactions
 
